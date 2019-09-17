@@ -1,6 +1,6 @@
 // This is a generated file. Do not edit directly.
 
-module k8s.io/sample-cli-plugin
+module k8s.io/kubectl-waste
 
 go 1.12
 
