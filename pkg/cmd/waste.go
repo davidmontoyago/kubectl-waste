@@ -22,8 +22,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	typev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+
+	"log"
+	"os"
+	"path/filepath"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -57,6 +65,9 @@ type NamespaceOptions struct {
 	listNamespaces bool
 	args           []string
 
+	k8sClient typev1.CoreV1Interface
+	namespace string
+
 	genericclioptions.IOStreams
 }
 
@@ -74,8 +85,8 @@ func NewCmdNamespace(streams genericclioptions.IOStreams) *cobra.Command {
 	o := NewNamespaceOptions(streams)
 
 	cmd := &cobra.Command{
-		Use:          "ns [new-namespace] [flags]",
-		Short:        "View or set the current namespace",
+		Use:          "waste [flags]",
+		Short:        "Find wasteful pods",
 		Example:      fmt.Sprintf(listWastefulPodsExample, "kubectl"),
 		SilenceUsage: true,
 		RunE: func(c *cobra.Command, args []string) error {
@@ -104,6 +115,17 @@ func (o *NamespaceOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.args = args
 
 	var err error
+
+	kubeconfig := filepath.Join(
+		os.Getenv("HOME"), ".kube", "config",
+	)
+	o.namespace = "kube-system"
+	o.k8sClient, err = getClient(kubeconfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return err
+	}
+
 	o.rawConfig, err = o.configFlags.ToRawKubeConfigLoader().RawConfig()
 	if err != nil {
 		return err
@@ -207,43 +229,34 @@ func (o *NamespaceOptions) Validate() error {
 // Run lists all available namespaces on a user's KUBECONFIG or updates the
 // current context based on a provided namespace.
 func (o *NamespaceOptions) Run() error {
-	if len(o.userSpecifiedNamespace) > 0 && o.resultingContext != nil {
-		return o.setNamespace(o.resultingContext, o.resultingContextName)
-	}
-
-	namespaces := map[string]bool{}
-
-	for name, c := range o.rawConfig.Contexts {
-		if !o.listNamespaces && name == o.rawConfig.CurrentContext {
-			if len(c.Namespace) == 0 {
-				return fmt.Errorf("no namespace is set for your current context: %q", name)
-			}
-
-			fmt.Fprintf(o.Out, "%s\n", c.Namespace)
-			return nil
-		}
-
-		// skip if dealing with a namespace we have already seen
-		// or if the namespace for the current context is empty
-		if len(c.Namespace) == 0 {
-			continue
-		}
-		if namespaces[c.Namespace] {
-			continue
-		}
-
-		namespaces[c.Namespace] = true
-	}
-
-	if !o.listNamespaces {
-		return fmt.Errorf("unable to find information for the current namespace in your configuration")
-	}
-
-	for n := range namespaces {
-		fmt.Fprintf(o.Out, "%s\n", n)
+	_, err := findPods(o.namespace, o.k8sClient)
+	if err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func getClient(configLocation string) (typev1.CoreV1Interface, error) {
+	kubeconfig := filepath.Clean(configLocation)
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return clientset.CoreV1(), nil
+}
+
+func findPods(namespace string, k8sClient typev1.CoreV1Interface) (*corev1.PodList, error) {
+	listOptions := metav1.ListOptions{}
+	pods, err := k8sClient.Pods(namespace).List(listOptions)
+	for _, pod := range pods.Items {
+		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
+	}
+	return pods, err
 }
 
 func isContextEqual(ctxA, ctxB *api.Context) bool {
