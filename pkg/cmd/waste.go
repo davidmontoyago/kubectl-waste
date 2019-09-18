@@ -48,9 +48,7 @@ var (
 	errNoContext = fmt.Errorf("no context is currently set, use %q to select a new one", "kubectl config use-context <context>")
 )
 
-// NamespaceOptions provides information required to update
-// the current context on a user's KUBECONFIG
-type NamespaceOptions struct {
+type CommandOptions struct {
 	configFlags *genericclioptions.ConfigFlags
 
 	resultingContext     *api.Context
@@ -71,18 +69,18 @@ type NamespaceOptions struct {
 	genericclioptions.IOStreams
 }
 
-// NewNamespaceOptions provides an instance of NamespaceOptions with default values
-func NewNamespaceOptions(streams genericclioptions.IOStreams) *NamespaceOptions {
-	return &NamespaceOptions{
+// NewCommandOptions provides an instance of CommandOptions with default values
+func NewCommandOptions(streams genericclioptions.IOStreams) *CommandOptions {
+	return &CommandOptions{
 		configFlags: genericclioptions.NewConfigFlags(true),
 
 		IOStreams: streams,
 	}
 }
 
-// NewCmdNamespace provides a cobra command wrapping NamespaceOptions
-func NewCmdNamespace(streams genericclioptions.IOStreams) *cobra.Command {
-	o := NewNamespaceOptions(streams)
+// NewCmd provides a cobra command wrapping CommandOptions
+func NewCmd(streams genericclioptions.IOStreams) *cobra.Command {
+	o := NewCommandOptions(streams)
 
 	cmd := &cobra.Command{
 		Use:          "waste [flags]",
@@ -111,7 +109,7 @@ func NewCmdNamespace(streams genericclioptions.IOStreams) *cobra.Command {
 }
 
 // Complete sets all information required for updating the current context
-func (o *NamespaceOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *CommandOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.args = args
 
 	var err error
@@ -215,7 +213,7 @@ func generateContextName(fromContext *api.Context) string {
 }
 
 // Validate ensures that all required arguments and flag values are provided
-func (o *NamespaceOptions) Validate() error {
+func (o *CommandOptions) Validate() error {
 	if len(o.rawConfig.CurrentContext) == 0 {
 		return errNoContext
 	}
@@ -228,7 +226,7 @@ func (o *NamespaceOptions) Validate() error {
 
 // Run lists all available namespaces on a user's KUBECONFIG or updates the
 // current context based on a provided namespace.
-func (o *NamespaceOptions) Run() error {
+func (o *CommandOptions) Run() error {
 	_, err := findPods(o.namespace, o.k8sClient)
 	if err != nil {
 		return err
@@ -280,7 +278,7 @@ func isContextEqual(ctxA, ctxB *api.Context) bool {
 // is already present in a user's KUBECONFIG. If one is not, then a new context is added
 // to the user's config under the provided destination name.
 // The current context field is updated to point to the new context.
-func (o *NamespaceOptions) setNamespace(fromContext *api.Context, withContextName string) error {
+func (o *CommandOptions) setNamespace(fromContext *api.Context, withContextName string) error {
 	if len(fromContext.Namespace) == 0 {
 		return fmt.Errorf("a non-empty namespace must be provided")
 	}
