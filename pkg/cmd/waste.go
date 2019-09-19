@@ -253,6 +253,13 @@ func findPods(namespace string, k8sClient typev1.CoreV1Interface) (*corev1.PodLi
 	pods, err := k8sClient.Pods(namespace).List(listOptions)
 	for _, pod := range pods.Items {
 		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
+		for _, container := range pod.Spec.Containers {
+			resources := container.Resources
+			requested_mem := resources.Requests[corev1.ResourceMemory]
+			requested_cpu := resources.Requests[corev1.ResourceCPU]
+			fmt.Fprintf(os.Stdout, "requested mem: %s\n", requested_mem.String())
+			fmt.Fprintf(os.Stdout, "requested cpu: %s\n", requested_cpu.String())
+		}
 	}
 	return pods, err
 }
