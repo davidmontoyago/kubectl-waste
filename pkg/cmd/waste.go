@@ -17,7 +17,9 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -29,8 +31,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
-
-	"os"
+	metricsv1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -236,7 +237,9 @@ func (o *CommandOptions) Validate() error {
 // current context based on a provided namespace.
 func (o *CommandOptions) Run() error {
 	corev1Client := o.clientset.CoreV1()
-	_, err := findPods(o.namespace, corev1Client)
+	metricsv1Client := o.metricsClientset.MetricsV1beta1()
+
+	_, err := findPods(o.namespace, corev1Client, metricsv1Client)
 	if err != nil {
 		return err
 	}
@@ -244,19 +247,44 @@ func (o *CommandOptions) Run() error {
 	return nil
 }
 
-func findPods(namespace string, corev1Client typev1.CoreV1Interface) (*corev1.PodList, error) {
+func findPods(namespace string,
+	corev1Client typev1.CoreV1Interface,
+	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) (*corev1.PodList, error) {
+
 	listOptions := metav1.ListOptions{}
-	pods, err := corev1Client.Pods(namespace).List(listOptions)
+	pods, err := corev1Client.Pods(metav1.NamespaceAll).List(listOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	podMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, pod := range pods.Items {
 		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
 		for _, container := range pod.Spec.Containers {
 			resources := container.Resources
-			requested_mem := resources.Requests[corev1.ResourceMemory]
-			requested_cpu := resources.Requests[corev1.ResourceCPU]
-			fmt.Fprintf(os.Stdout, "requested mem: %s\n", requested_mem.String())
-			fmt.Fprintf(os.Stdout, "requested cpu: %s\n", requested_cpu.String())
+			requestedMem := resources.Requests[corev1.ResourceMemory]
+			requestedCpu := resources.Requests[corev1.ResourceCPU]
+			fmt.Fprintf(os.Stdout, "requested mem: %s\n", requestedMem.String())
+			fmt.Fprintf(os.Stdout, "requested cpu: %s\n", requestedCpu.String())
 		}
 	}
+
+	for _, podMetric := range podMetrics.Items {
+		podContainers := podMetric.Containers
+		for _, container := range podContainers {
+			cpuQuantity, ok := container.Usage.Cpu().AsInt64()
+			memQuantity, ok := container.Usage.Memory().AsInt64()
+			if !ok {
+				return nil, errors.New("failed getting metrics!")
+			}
+			fmt.Fprintf(os.Stdout, "\nContainer Name: %s \n CPU usage: %d \n Memory usage: %d", container.Name, cpuQuantity, memQuantity)
+		}
+	}
+
 	return pods, err
 }
 
