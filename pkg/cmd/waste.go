@@ -29,9 +29,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"log"
 	"os"
-	"path/filepath"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -47,6 +45,14 @@ var (
 
 	errNoContext = fmt.Errorf("no context is currently set, use %q to select a new one", "kubectl config use-context <context>")
 )
+
+var (
+	clientset *kubernetes.Clientset
+)
+
+func init() {
+	clientset, _ = InitClient()
+}
 
 type CommandOptions struct {
 	configFlags *genericclioptions.ConfigFlags
@@ -114,11 +120,8 @@ func (o *CommandOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	var err error
 
-	kubeconfig := filepath.Join(
-		os.Getenv("HOME"), ".kube", "config",
-	)
 	o.namespace = "kube-system"
-	o.k8sClient, err = getClient(kubeconfig)
+	o.k8sClient = clientset.CoreV1()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return err
@@ -233,19 +236,6 @@ func (o *CommandOptions) Run() error {
 	}
 
 	return nil
-}
-
-func getClient(configLocation string) (typev1.CoreV1Interface, error) {
-	kubeconfig := filepath.Clean(configLocation)
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.Fatal(err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	return clientset.CoreV1(), nil
 }
 
 func findPods(namespace string, k8sClient typev1.CoreV1Interface) (*corev1.PodList, error) {
