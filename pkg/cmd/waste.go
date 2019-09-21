@@ -52,11 +52,6 @@ var (
 	metricsClientset *metrics.Clientset
 )
 
-func init() {
-	clientset, _ = InitClient()
-	metricsClientset, _ = InitMetricsClient()
-}
-
 type CommandOptions struct {
 	configFlags *genericclioptions.ConfigFlags
 
@@ -72,7 +67,9 @@ type CommandOptions struct {
 	listNamespaces bool
 	args           []string
 
-	k8sClient typev1.CoreV1Interface
+	clientset        *kubernetes.Clientset
+	metricsClientset *metrics.Clientset
+
 	namespace string
 
 	genericclioptions.IOStreams
@@ -124,7 +121,12 @@ func (o *CommandOptions) Complete(cmd *cobra.Command, args []string) error {
 	var err error
 
 	o.namespace = "kube-system"
-	o.k8sClient = clientset.CoreV1()
+	o.clientset, err = InitClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return err
+	}
+	o.metricsClientset, err = InitMetricsClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return err
@@ -233,7 +235,8 @@ func (o *CommandOptions) Validate() error {
 // Run lists all available namespaces on a user's KUBECONFIG or updates the
 // current context based on a provided namespace.
 func (o *CommandOptions) Run() error {
-	_, err := findPods(o.namespace, o.k8sClient)
+	corev1Client := o.clientset.CoreV1()
+	_, err := findPods(o.namespace, corev1Client)
 	if err != nil {
 		return err
 	}
@@ -241,9 +244,9 @@ func (o *CommandOptions) Run() error {
 	return nil
 }
 
-func findPods(namespace string, k8sClient typev1.CoreV1Interface) (*corev1.PodList, error) {
+func findPods(namespace string, corev1Client typev1.CoreV1Interface) (*corev1.PodList, error) {
 	listOptions := metav1.ListOptions{}
-	pods, err := k8sClient.Pods(namespace).List(listOptions)
+	pods, err := corev1Client.Pods(namespace).List(listOptions)
 	for _, pod := range pods.Items {
 		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
 		for _, container := range pod.Spec.Containers {
