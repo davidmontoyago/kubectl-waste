@@ -274,6 +274,7 @@ func findPods(namespace string,
 	}
 
 	for _, podMetric := range podMetrics.Items {
+		fmt.Fprintf(os.Stdout, "pod name: %v\n", podMetric.ObjectMeta.Name)
 		podContainers := podMetric.Containers
 		for _, container := range podContainers {
 			cpuQuantity, ok := container.Usage.Cpu().AsInt64()
@@ -281,7 +282,9 @@ func findPods(namespace string,
 			if !ok {
 				return nil, errors.New("failed getting metrics!")
 			}
-			fmt.Fprintf(os.Stdout, "\nContainer Name: %s \n CPU usage: %d \n Memory usage: %d", container.Name, cpuQuantity, memQuantity)
+			fmt.Fprintf(os.Stdout, "container: %s\n", container.Name)
+			fmt.Fprintf(os.Stdout, "used mem: %d\n", memQuantity)
+			fmt.Fprintf(os.Stdout, "used cpu: %d\n", cpuQuantity)
 		}
 	}
 
