@@ -28,6 +28,7 @@ import (
 	typev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"os"
 
@@ -47,11 +48,13 @@ var (
 )
 
 var (
-	clientset *kubernetes.Clientset
+	clientset        *kubernetes.Clientset
+	metricsClientset *metrics.Clientset
 )
 
 func init() {
 	clientset, _ = InitClient()
+	metricsClientset, _ = InitMetricsClient()
 }
 
 type CommandOptions struct {

@@ -11,6 +11,7 @@ require (
 	k8s.io/apimachinery v0.0.0-20190831074630-461753078381
 	k8s.io/cli-runtime v0.0.0-20190831080432-9d670f2021f4
 	k8s.io/client-go v0.0.0-20190831074946-3fe2abece89e
+	k8s.io/metrics v0.0.0-20190731144634-25630f8a23dd
 )
 
 replace (
