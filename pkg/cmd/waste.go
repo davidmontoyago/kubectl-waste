@@ -33,6 +33,7 @@ import (
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	metricsv1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -247,6 +248,19 @@ func (o *CommandOptions) Run() error {
 	return nil
 }
 
+type Container struct {
+	Name    string
+	UsedMem *resource.Quantity
+	UsedCpu *resource.Quantity
+}
+
+type Pod struct {
+	Name         string
+	RequestedMem resource.Quantity
+	RequestedCpu resource.Quantity
+	Containers   []*Container
+}
+
 func findPods(namespace string,
 	corev1Client typev1.CoreV1Interface,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) (*corev1.PodList, error) {
@@ -262,19 +276,26 @@ func findPods(namespace string,
 		return nil, err
 	}
 
+	var podsByName = make(map[string]Pod)
+
 	for _, pod := range pods.Items {
 		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
+		consumingPod := Pod{Name: pod.Name}
 		for _, container := range pod.Spec.Containers {
 			resources := container.Resources
 			requestedMem := resources.Requests[corev1.ResourceMemory]
 			requestedCpu := resources.Requests[corev1.ResourceCPU]
+			consumingPod.RequestedMem = requestedMem
+			consumingPod.RequestedCpu = requestedCpu
 			fmt.Fprintf(os.Stdout, "requested mem: %s\n", requestedMem.String())
 			fmt.Fprintf(os.Stdout, "requested cpu: %s\n", requestedCpu.String())
 		}
+		podsByName[pod.Name] = consumingPod
 	}
 
 	for _, podMetric := range podMetrics.Items {
 		fmt.Fprintf(os.Stdout, "pod name: %v\n", podMetric.ObjectMeta.Name)
+
 		podContainers := podMetric.Containers
 		for _, container := range podContainers {
 			cpuQuantity, ok := container.Usage.Cpu().AsInt64()
@@ -287,6 +308,8 @@ func findPods(namespace string,
 			fmt.Fprintf(os.Stdout, "used cpu: %d\n", cpuQuantity)
 		}
 	}
+
+	fmt.Fprintf(os.Stdout, "podsByName: %s\n", podsByName)
 
 	return pods, err
 }
