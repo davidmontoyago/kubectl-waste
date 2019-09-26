@@ -260,6 +260,10 @@ type Pod struct {
 	Containers   []Container
 }
 
+func (pod Pod) UtilizationPercentage() float64 {
+   return 0.0
+}
+
 func findPods(namespace string,
 	corev1Client typev1.CoreV1Interface,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) (*corev1.PodList, error) {
