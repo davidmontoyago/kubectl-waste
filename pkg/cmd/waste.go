@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -258,7 +257,7 @@ type Pod struct {
 	Name         string
 	RequestedMem resource.Quantity
 	RequestedCpu resource.Quantity
-	Containers   []*Container
+	Containers   []Container
 }
 
 func findPods(namespace string,
@@ -279,37 +278,30 @@ func findPods(namespace string,
 	var podsByName = make(map[string]Pod)
 
 	for _, pod := range pods.Items {
-		fmt.Fprintf(os.Stdout, "pod name: %v\n", pod.Name)
 		consumingPod := Pod{Name: pod.Name}
 		for _, container := range pod.Spec.Containers {
 			resources := container.Resources
-			requestedMem := resources.Requests[corev1.ResourceMemory]
-			requestedCpu := resources.Requests[corev1.ResourceCPU]
-			consumingPod.RequestedMem = requestedMem
-			consumingPod.RequestedCpu = requestedCpu
-			fmt.Fprintf(os.Stdout, "requested mem: %s\n", requestedMem.String())
-			fmt.Fprintf(os.Stdout, "requested cpu: %s\n", requestedCpu.String())
+			consumingPod.RequestedMem = resources.Requests[corev1.ResourceMemory]
+			consumingPod.RequestedCpu = resources.Requests[corev1.ResourceCPU]
 		}
 		podsByName[pod.Name] = consumingPod
 	}
 
 	for _, podMetric := range podMetrics.Items {
-		fmt.Fprintf(os.Stdout, "pod name: %v\n", podMetric.ObjectMeta.Name)
-
-		podContainers := podMetric.Containers
-		for _, container := range podContainers {
-			cpuQuantity, ok := container.Usage.Cpu().AsInt64()
-			memQuantity, ok := container.Usage.Memory().AsInt64()
-			if !ok {
-				return nil, errors.New("failed getting metrics!")
-			}
-			fmt.Fprintf(os.Stdout, "container: %s\n", container.Name)
-			fmt.Fprintf(os.Stdout, "used mem: %d\n", memQuantity)
-			fmt.Fprintf(os.Stdout, "used cpu: %d\n", cpuQuantity)
+		var podContainers []Container
+		for _, container := range podMetric.Containers {
+			podContainer := Container{Name: container.Name}
+			podContainer.UsedMem = container.Usage.Memory()
+			podContainer.UsedCpu = container.Usage.Cpu()
+			podContainers = append(podContainers, podContainer)
 		}
+
+		consumingPod := podsByName[podMetric.ObjectMeta.Name]
+		consumingPod.Containers = podContainers
+		podsByName[podMetric.ObjectMeta.Name] = consumingPod
 	}
 
-	fmt.Fprintf(os.Stdout, "podsByName: %s\n", podsByName)
+	fmt.Fprintf(os.Stdout, "podsByName: %+v\n", podsByName)
 
 	return pods, err
 }
