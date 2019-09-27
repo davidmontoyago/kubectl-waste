@@ -249,8 +249,8 @@ func (o *CommandOptions) Run() error {
 
 type Container struct {
 	Name    string
-	UsedMem *resource.Quantity
-	UsedCpu *resource.Quantity
+	UsedMem resource.Quantity
+	UsedCpu resource.Quantity
 }
 
 type Pod struct {
@@ -260,8 +260,17 @@ type Pod struct {
 	Containers   []Container
 }
 
-func (pod Pod) UtilizationPercentage() float64 {
-   return 0.0
+func (pod Pod) MemUtilizationPercentage() float64 {
+	var totalUsedMem int64
+	for _, container := range pod.Containers {
+		totalUsedMem += container.UsedMem.MilliValue()
+	}
+	requestedMem := pod.RequestedMem.MilliValue()
+	return float64(totalUsedMem) / float64(requestedMem) * 100
+}
+
+func (pod Pod) CpuUtilizationPercentage() float64 {
+	return 0.0
 }
 
 func findPods(namespace string,
@@ -295,8 +304,8 @@ func findPods(namespace string,
 		var podContainers []Container
 		for _, container := range podMetric.Containers {
 			podContainer := Container{Name: container.Name}
-			podContainer.UsedMem = container.Usage.Memory()
-			podContainer.UsedCpu = container.Usage.Cpu()
+			podContainer.UsedMem = *container.Usage.Memory()
+			podContainer.UsedCpu = *container.Usage.Cpu()
 			podContainers = append(podContainers, podContainer)
 		}
 
