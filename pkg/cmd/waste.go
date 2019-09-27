@@ -270,7 +270,12 @@ func (pod Pod) MemUtilizationPercentage() float64 {
 }
 
 func (pod Pod) CpuUtilizationPercentage() float64 {
-	return 0.0
+	var totalUsedCpu int64
+	for _, container := range pod.Containers {
+		totalUsedCpu += container.UsedCpu.MilliValue()
+	}
+	requestedCpu := pod.RequestedCpu.MilliValue()
+	return float64(totalUsedCpu) / float64(requestedCpu) * 100
 }
 
 func findPods(namespace string,
