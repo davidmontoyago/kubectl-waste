@@ -239,10 +239,11 @@ func (o *CommandOptions) Run() error {
 	corev1Client := o.clientset.CoreV1()
 	metricsv1Client := o.metricsClientset.MetricsV1beta1()
 
-	_, err := findPods(o.namespace, corev1Client, metricsv1Client)
+	foundPods, err := findPods(o.namespace, corev1Client, metricsv1Client)
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stdout, "foundPods: %+v\n", foundPods)
 
 	return nil
 }
@@ -280,7 +281,7 @@ func (pod Pod) CpuUtilizationPercentage() float64 {
 
 func findPods(namespace string,
 	corev1Client typev1.CoreV1Interface,
-	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) (*corev1.PodList, error) {
+	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
 
 	listOptions := metav1.ListOptions{}
 	pods, err := corev1Client.Pods(metav1.NamespaceAll).List(listOptions)
@@ -305,6 +306,7 @@ func findPods(namespace string,
 		podsByName[pod.Name] = consumingPod
 	}
 
+	foundPods := []Pod{}
 	for _, podMetric := range podMetrics.Items {
 		var podContainers []Container
 		for _, container := range podMetric.Containers {
@@ -316,12 +318,9 @@ func findPods(namespace string,
 
 		consumingPod := podsByName[podMetric.ObjectMeta.Name]
 		consumingPod.Containers = podContainers
-		podsByName[podMetric.ObjectMeta.Name] = consumingPod
+		foundPods = append(foundPods, consumingPod)
 	}
-
-	fmt.Fprintf(os.Stdout, "podsByName: %+v\n", podsByName)
-
-	return pods, err
+	return foundPods, err
 }
 
 func isContextEqual(ctxA, ctxB *api.Context) bool {
