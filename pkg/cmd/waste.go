@@ -284,13 +284,13 @@ func findPods(namespace string,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
 
 	listOptions := metav1.ListOptions{}
-	pods, err := corev1Client.Pods(metav1.NamespaceAll).List(listOptions)
+	allPods, err := corev1Client.Pods(metav1.NamespaceAll).List(listOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	var podsByName = make(map[string]Pod)
-	for _, pod := range pods.Items {
+	for _, pod := range allPods.Items {
 		podContainers := make(map[string]Container)
 		consumingPod := Pod{Name: pod.Name}
 		for _, container := range pod.Spec.Containers {
@@ -304,6 +304,14 @@ func findPods(namespace string,
 		podsByName[pod.Name] = consumingPod
 	}
 
+	pods, err := collectPodsMetrics(podsByName, metricsv1Client)
+	return pods, err
+}
+
+func collectPodsMetrics(podsByName map[string]Pod,
+	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
+
+	listOptions := metav1.ListOptions{}
 	podMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
 	if err != nil {
 		return nil, err
@@ -321,7 +329,7 @@ func findPods(namespace string,
 		consumingPod.Containers = containersByName
 		foundPods = append(foundPods, consumingPod)
 	}
-	return foundPods, err
+	return foundPods, nil
 }
 
 func isContextEqual(ctxA, ctxB *api.Context) bool {
