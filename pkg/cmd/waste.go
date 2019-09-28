@@ -249,34 +249,34 @@ func (o *CommandOptions) Run() error {
 }
 
 type Container struct {
-	Name    string
-	UsedMem resource.Quantity
-	UsedCpu resource.Quantity
+	Name         string
+	UsedMem      resource.Quantity
+	UsedCpu      resource.Quantity
+	RequestedMem resource.Quantity
+	RequestedCpu resource.Quantity
 }
 
 type Pod struct {
-	Name         string
-	RequestedMem resource.Quantity
-	RequestedCpu resource.Quantity
-	Containers   []Container
+	Name       string
+	Containers map[string]Container
 }
 
 func (pod Pod) MemUtilizationPercentage() float64 {
-	var totalUsedMem int64
+	var totalUsedMem, totalRequestedMem int64
 	for _, container := range pod.Containers {
 		totalUsedMem += container.UsedMem.MilliValue()
+		totalRequestedMem += container.RequestedMem.MilliValue()
 	}
-	requestedMem := pod.RequestedMem.MilliValue()
-	return float64(totalUsedMem) / float64(requestedMem) * 100
+	return float64(totalUsedMem) / float64(totalRequestedMem) * 100
 }
 
 func (pod Pod) CpuUtilizationPercentage() float64 {
-	var totalUsedCpu int64
+	var totalUsedCpu, totalRequestedCpu int64
 	for _, container := range pod.Containers {
 		totalUsedCpu += container.UsedCpu.MilliValue()
+		totalRequestedCpu += container.RequestedCpu.MilliValue()
 	}
-	requestedCpu := pod.RequestedCpu.MilliValue()
-	return float64(totalUsedCpu) / float64(requestedCpu) * 100
+	return float64(totalUsedCpu) / float64(totalRequestedCpu) * 100
 }
 
 func findPods(namespace string,
@@ -289,35 +289,36 @@ func findPods(namespace string,
 		return nil, err
 	}
 
+	var podsByName = make(map[string]Pod)
+	for _, pod := range pods.Items {
+		podContainers := make(map[string]Container)
+		consumingPod := Pod{Name: pod.Name}
+		for _, container := range pod.Spec.Containers {
+			resources := container.Resources
+			podContainer := Container{Name: container.Name}
+			podContainer.RequestedMem = resources.Requests[corev1.ResourceMemory]
+			podContainer.RequestedCpu = resources.Requests[corev1.ResourceCPU]
+			podContainers[container.Name] = podContainer
+		}
+		consumingPod.Containers = podContainers
+		podsByName[pod.Name] = consumingPod
+	}
+
 	podMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	var podsByName = make(map[string]Pod)
-
-	for _, pod := range pods.Items {
-		consumingPod := Pod{Name: pod.Name}
-		for _, container := range pod.Spec.Containers {
-			resources := container.Resources
-			consumingPod.RequestedMem = resources.Requests[corev1.ResourceMemory]
-			consumingPod.RequestedCpu = resources.Requests[corev1.ResourceCPU]
-		}
-		podsByName[pod.Name] = consumingPod
-	}
-
 	foundPods := []Pod{}
 	for _, podMetric := range podMetrics.Items {
-		var podContainers []Container
+		consumingPod := podsByName[podMetric.ObjectMeta.Name]
+		containersByName := consumingPod.Containers
 		for _, container := range podMetric.Containers {
-			podContainer := Container{Name: container.Name}
+			podContainer := containersByName[container.Name]
 			podContainer.UsedMem = *container.Usage.Memory()
 			podContainer.UsedCpu = *container.Usage.Cpu()
-			podContainers = append(podContainers, podContainer)
+			containersByName[container.Name] = podContainer
 		}
-
-		consumingPod := podsByName[podMetric.ObjectMeta.Name]
-		consumingPod.Containers = podContainers
+		consumingPod.Containers = containersByName
 		foundPods = append(foundPods, consumingPod)
 	}
 	return foundPods, err
