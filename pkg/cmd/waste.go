@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"text/tabwriter"
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
@@ -243,8 +244,7 @@ func (o *CommandOptions) Run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "foundPods: %+v\n", foundPods)
-
+	printPods(foundPods)
 	return nil
 }
 
@@ -330,6 +330,18 @@ func collectPodsMetrics(podsByName map[string]Pod,
 		foundPods = append(foundPods, consumingPod)
 	}
 	return foundPods, nil
+}
+
+func printPods(pods []Pod) {
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+	fmt.Fprintln(w, "Name\tUtilization %\t.")
+	for _, pod := range pods {
+		row := fmt.Sprintf("%s\t%2.f%%\t%2.f%%", pod.Name, pod.MemUtilizationPercentage(), pod.CpuUtilizationPercentage())
+		fmt.Fprintln(w, row)
+	}
+
+	w.Flush()
 }
 
 func isContextEqual(ctxA, ctxB *api.Context) bool {
