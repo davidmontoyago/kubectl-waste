@@ -30,8 +30,10 @@ import (
 	typev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 	metricsv1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
+	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -51,7 +53,7 @@ var (
 
 var (
 	clientset        *kubernetes.Clientset
-	metricsClientset *metrics.Clientset
+	metricsClientset *metricsclientset.Clientset
 )
 
 type CommandOptions struct {
@@ -70,7 +72,7 @@ type CommandOptions struct {
 	args           []string
 
 	clientset        *kubernetes.Clientset
-	metricsClientset *metrics.Clientset
+	metricsClientset *metricsclientset.Clientset
 
 	namespace string
 
@@ -288,7 +290,17 @@ func findPods(namespace string,
 	if err != nil {
 		return nil, err
 	}
+	podsMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
+	if err != nil {
+		return nil, err
+	}
 
+	podsByName, err := collectPodsRequests(allPods)
+	pods, err := collectPodsMetrics(podsByName, podsMetrics)
+	return pods, err
+}
+
+func collectPodsRequests(allPods *corev1.PodList) (map[string]Pod, error) {
 	var podsByName = make(map[string]Pod)
 	for _, pod := range allPods.Items {
 		podContainers := make(map[string]Container)
@@ -303,21 +315,14 @@ func findPods(namespace string,
 		consumingPod.Containers = podContainers
 		podsByName[pod.Name] = consumingPod
 	}
-
-	pods, err := collectPodsMetrics(podsByName, metricsv1Client)
-	return pods, err
+	return podsByName, nil
 }
 
 func collectPodsMetrics(podsByName map[string]Pod,
-	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
+	allPodsMetrics *metrics.PodMetricsList) ([]Pod, error) {
 
-	listOptions := metav1.ListOptions{}
-	podMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
-	if err != nil {
-		return nil, err
-	}
 	foundPods := []Pod{}
-	for _, podMetric := range podMetrics.Items {
+	for _, podMetric := range allPodsMetrics.Items {
 		consumingPod := podsByName[podMetric.ObjectMeta.Name]
 		containersByName := consumingPod.Containers
 		for _, container := range podMetric.Containers {
@@ -335,7 +340,7 @@ func collectPodsMetrics(podsByName map[string]Pod,
 func printPods(pods []Pod) {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-	fmt.Fprintln(w, "Name\tUtilization %\t.")
+	fmt.Fprintln(w, "Name\tMem Utilization %\tCpu Utilization %\t.")
 	for _, pod := range pods {
 		row := fmt.Sprintf("%s\t%2.f%%\t%2.f%%", pod.Name, pod.MemUtilizationPercentage(), pod.CpuUtilizationPercentage())
 		fmt.Fprintln(w, row)
