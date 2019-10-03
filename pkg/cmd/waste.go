@@ -21,8 +21,8 @@ import (
 	"os"
 	"strings"
 
-	"text/tabwriter"
 	"github.com/spf13/cobra"
+	"text/tabwriter"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +31,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 	metricsv1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
-	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -250,12 +250,30 @@ func (o *CommandOptions) Run() error {
 	return nil
 }
 
+func Filter(vs []Pod, f func(Pod) bool) []Pod {
+	vsf := make([]Pod, 0)
+	for _, v := range vs {
+		if f(v) {
+			vsf = append(vsf, v)
+		}
+	}
+	return vsf
+}
+
 type Container struct {
 	Name         string
 	UsedMem      resource.Quantity
 	UsedCpu      resource.Quantity
 	RequestedMem resource.Quantity
 	RequestedCpu resource.Quantity
+}
+
+func (container Container) IsCpuBound() bool {
+	return container.RequestedCpu.Value() != 0
+}
+
+func (container Container) IsMemBound() bool {
+	return container.RequestedMem.Value() != 0
 }
 
 type Pod struct {
@@ -266,8 +284,10 @@ type Pod struct {
 func (pod Pod) MemUtilizationPercentage() float64 {
 	var totalUsedMem, totalRequestedMem int64
 	for _, container := range pod.Containers {
-		totalUsedMem += container.UsedMem.MilliValue()
-		totalRequestedMem += container.RequestedMem.MilliValue()
+		if container.IsMemBound() {
+			totalUsedMem += container.UsedMem.MilliValue()
+			totalRequestedMem += container.RequestedMem.MilliValue()
+		}
 	}
 	return float64(totalUsedMem) / float64(totalRequestedMem) * 100
 }
@@ -275,10 +295,21 @@ func (pod Pod) MemUtilizationPercentage() float64 {
 func (pod Pod) CpuUtilizationPercentage() float64 {
 	var totalUsedCpu, totalRequestedCpu int64
 	for _, container := range pod.Containers {
-		totalUsedCpu += container.UsedCpu.MilliValue()
-		totalRequestedCpu += container.RequestedCpu.MilliValue()
+		if container.IsCpuBound() {
+			totalUsedCpu += container.UsedCpu.MilliValue()
+			totalRequestedCpu += container.RequestedCpu.MilliValue()
+		}
 	}
 	return float64(totalUsedCpu) / float64(totalRequestedCpu) * 100
+}
+
+func (pod Pod) IsResourceBound() bool {
+	for _, container := range pod.Containers {
+		if container.IsMemBound() || container.IsCpuBound() {
+			return true
+		}
+	}
+	return false
 }
 
 func findPods(namespace string,
@@ -296,8 +327,18 @@ func findPods(namespace string,
 	}
 
 	podsByName, err := collectPodsRequests(allPods)
+	if err != nil {
+		return nil, err
+	}
+
 	pods, err := collectPodsMetrics(podsByName, podsMetrics)
-	return pods, err
+	if err != nil {
+		return nil, err
+	}
+
+	pods = Filter(pods, Pod.IsResourceBound)
+
+	return pods, nil
 }
 
 func collectPodsRequests(allPods *corev1.PodList) (map[string]Pod, error) {
@@ -340,9 +381,9 @@ func collectPodsMetrics(podsByName map[string]Pod,
 func printPods(pods []Pod) {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-	fmt.Fprintln(w, "Name\tMem Utilization %\tCpu Utilization %\t.")
+	fmt.Fprintln(w, "Name\tMem Utilization %\tCpu Utilization %\t")
 	for _, pod := range pods {
-		row := fmt.Sprintf("%s\t%2.f%%\t%2.f%%", pod.Name, pod.MemUtilizationPercentage(), pod.CpuUtilizationPercentage())
+		row := fmt.Sprintf("%s\t%2.f%%\t%2.f%%\t", pod.Name, pod.MemUtilizationPercentage(), pod.CpuUtilizationPercentage())
 		fmt.Fprintln(w, row)
 	}
 
