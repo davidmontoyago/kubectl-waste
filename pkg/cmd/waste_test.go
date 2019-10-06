@@ -29,6 +29,22 @@ func TestIsResourceBoundPod(t *testing.T) {
 	}
 }
 
+func TestTotalRequestedCpu(t *testing.T) {
+	pod := NewTestPod()
+	totalRequested := pod.TotalRequestedCpu()
+	if totalRequested.MilliValue() != 1000 {
+		t.Errorf("got = %v; want 1000", totalRequested)
+	}
+}
+
+func TestTotalRequestedMem(t *testing.T) {
+	pod := NewTestPod()
+	totalRequested := pod.TotalRequestedMem()
+	if totalRequested.String() != "1" {
+		t.Errorf("got = %v; want 1", totalRequested)
+	}
+}
+
 func TestIsCpuBoundContainer(t *testing.T) {
 	pod := NewTestPod()
 	unboundContainer := pod.Containers["resource-unbound-container"]

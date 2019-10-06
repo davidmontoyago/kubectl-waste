@@ -312,6 +312,26 @@ func (pod Pod) IsResourceBound() bool {
 	return false
 }
 
+func (pod Pod) TotalRequestedCpu() resource.Quantity {
+	totalRequested := resource.NewMilliQuantity(0, resource.DecimalSI)
+	for _, container := range pod.Containers {
+		if container.IsCpuBound() {
+			totalRequested.Add(container.RequestedCpu)
+		}
+	}
+	return *totalRequested
+}
+
+func (pod Pod) TotalRequestedMem() resource.Quantity {
+	totalRequested := resource.NewMilliQuantity(0, resource.DecimalSI)
+	for _, container := range pod.Containers {
+		if container.IsMemBound() {
+			totalRequested.Add(container.RequestedMem)
+		}
+	}
+	return *totalRequested
+}
+
 func findPods(namespace string,
 	corev1Client typev1.CoreV1Interface,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
@@ -380,10 +400,15 @@ func collectPodsMetrics(podsByName map[string]Pod,
 
 func printPods(pods []Pod) {
 	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-	fmt.Fprintln(w, "Name\tMem Utilization %\tCpu Utilization %\t")
+	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
+	fmt.Fprintln(w, "Name\tMem Requested\tMem Utilization %\tCpu Requested\tCpu Utilization %\t")
+	fmt.Fprintln(w, "----\t-------------\t-----------------\t-------------\t-----------------\t")
 	for _, pod := range pods {
-		row := fmt.Sprintf("%s\t%2.f%%\t%2.f%%\t", pod.Name, pod.MemUtilizationPercentage(), pod.CpuUtilizationPercentage())
+		totalRequestedMem := pod.TotalRequestedMem()
+		totalRequestedCpu := pod.TotalRequestedCpu()
+		row := fmt.Sprintf("%s\t%v\t%2.f%%\t%v\t%2.f%%\t",
+			pod.Name, totalRequestedMem.String(), pod.MemUtilizationPercentage(),
+			totalRequestedCpu.String(), pod.CpuUtilizationPercentage())
 		fmt.Fprintln(w, row)
 	}
 
