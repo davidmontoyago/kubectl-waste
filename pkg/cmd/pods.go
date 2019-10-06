@@ -66,6 +66,26 @@ func (pod Pod) IsResourceBound() bool {
 	return false
 }
 
+// Return True if at least one container is Cpu bound
+func (pod Pod) IsCpuBound() bool {
+	for _, container := range pod.Containers {
+		if container.IsCpuBound() {
+			return true
+		}
+	}
+	return false
+}
+
+// Return True if at least one container is Mem bound
+func (pod Pod) IsMemBound() bool {
+	for _, container := range pod.Containers {
+		if container.IsMemBound() {
+			return true
+		}
+	}
+	return false
+}
+
 func (pod Pod) TotalRequestedCpu() resource.Quantity {
 	totalRequested := resource.NewMilliQuantity(0, resource.DecimalSI)
 	for _, container := range pod.Containers {
@@ -158,11 +178,25 @@ func printPods(pods []Pod) {
 	fmt.Fprintln(w, "Name\tMem Requested\tMem Utilization %\tCpu Requested\tCpu Utilization %\t")
 	fmt.Fprintln(w, "----\t-------------\t-----------------\t-------------\t-----------------\t")
 	for _, pod := range pods {
-		totalRequestedMem := pod.TotalRequestedMem()
-		totalRequestedCpu := pod.TotalRequestedCpu()
-		row := fmt.Sprintf("%s\t%v\t%2.f%%\t%v\t%2.f%%\t",
-			pod.Name, totalRequestedMem.String(), pod.MemUtilizationPercentage(),
-			totalRequestedCpu.String(), pod.CpuUtilizationPercentage())
+		totalRequestedMemFormatted := "-"
+		memUtilizationPercentFormatted := "-"
+		if pod.IsMemBound() {
+			totalRequestedMem := pod.TotalRequestedMem()
+			totalRequestedMemFormatted = totalRequestedMem.String()
+			memUtilizationPercentFormatted = fmt.Sprintf("%2.f%%", pod.MemUtilizationPercentage())
+		}
+
+		totalRequestedCpuFormatted := "-"
+		cpuUtilizationPercetFormatted := "-"
+		if pod.IsCpuBound() {
+			totalRequestedCpu := pod.TotalRequestedCpu()
+			totalRequestedCpuFormatted = totalRequestedCpu.String()
+			cpuUtilizationPercetFormatted = fmt.Sprintf("%2.f%%", pod.CpuUtilizationPercentage())
+		}
+
+		row := fmt.Sprintf("%s\t%v\t%s\t%v\t%s\t",
+			pod.Name, totalRequestedMemFormatted, memUtilizationPercentFormatted,
+			totalRequestedCpuFormatted, cpuUtilizationPercetFormatted)
 		fmt.Fprintln(w, row)
 	}
 

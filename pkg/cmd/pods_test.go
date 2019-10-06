@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// ---------------
+// Pod tests
+// ---------------
 func TestMemUtilizationPercentage(t *testing.T) {
 	pod := NewTestPod()
 	utilizationPerct := pod.MemUtilizationPercentage()
@@ -29,6 +32,22 @@ func TestIsResourceBoundPod(t *testing.T) {
 	}
 }
 
+func TestIsCpuBoundPod(t *testing.T) {
+	pod := NewTestPodWithNoRequests()
+	isResourceBound := pod.IsCpuBound()
+	if isResourceBound {
+		t.Errorf("got = %v; want false", isResourceBound)
+	}
+}
+
+func TestIsMemBoundPod(t *testing.T) {
+	pod := NewTestPodWithNoRequests()
+	isResourceBound := pod.IsMemBound()
+	if isResourceBound {
+		t.Errorf("got = %v; want false", isResourceBound)
+	}
+}
+
 func TestTotalRequestedCpu(t *testing.T) {
 	pod := NewTestPod()
 	totalRequested := pod.TotalRequestedCpu()
@@ -45,6 +64,9 @@ func TestTotalRequestedMem(t *testing.T) {
 	}
 }
 
+// ---------------
+// Container tests
+// ---------------
 func TestIsCpuBoundContainer(t *testing.T) {
 	pod := NewTestPod()
 	unboundContainer := pod.Containers["resource-unbound-container"]
