@@ -31,6 +31,18 @@ func (container Container) IsMemBound() bool {
 	return container.RequestedMem.Value() != 0
 }
 
+func (container Container) MemUtilizationPercentage() float64 {
+	used := container.UsedMem.MilliValue()
+	requested := container.RequestedMem.MilliValue()
+	return float64(used) / float64(requested) * 100
+}
+
+func (container Container) CpuUtilizationPercentage() float64 {
+	used := container.UsedCpu.MilliValue()
+	requested := container.RequestedCpu.MilliValue()
+	return float64(used) / float64(requested) * 100
+}
+
 type Pod struct {
 	Name       string
 	Namespace  string
@@ -213,30 +225,58 @@ func printPods(pods []Pod) {
 	fmt.Fprintln(w, "NAMESPACE\tNAME\tMEM REQUESTED\tMEM UTILIZATION %\tCPU REQUESTED\tCPU UTILIZATION %\t")
 	fmt.Fprintln(w, "---------\t----\t-------------\t-----------------\t-------------\t-----------------\t")
 	for _, pod := range pods {
-		totalRequestedMemFormatted := "-"
-		memUtilizationPercentFormatted := "-"
-		if pod.IsMemBound() {
-			totalRequestedMem := pod.TotalRequestedMem()
-			totalRequestedMemFormatted = totalRequestedMem.String()
-			memUtilizationPercentFormatted = fmt.Sprintf("%2.f%%", pod.MemUtilizationPercentage())
-		}
+		fmt.Fprintln(w, toPodRow(pod))
 
-		totalRequestedCpuFormatted := "-"
-		cpuUtilizationPercetFormatted := "-"
-		if pod.IsCpuBound() {
-			totalRequestedCpu := pod.TotalRequestedCpu()
-			totalRequestedCpuFormatted = totalRequestedCpu.String()
-			cpuUtilizationPercetFormatted = fmt.Sprintf("%2.f%%", pod.CpuUtilizationPercentage())
+		for _, container := range pod.Containers {
+			fmt.Fprintln(w, toContainerRow(container))
 		}
-
-		row := fmt.Sprintf("%s\t%s\t%v\t%s\t%v\t%s\t",
-			pod.Namespace, pod.Name,
-			totalRequestedMemFormatted, memUtilizationPercentFormatted,
-			totalRequestedCpuFormatted, cpuUtilizationPercetFormatted)
-		fmt.Fprintln(w, row)
 	}
 
 	w.Flush()
+}
+
+func toPodRow(pod Pod) string {
+	totalRequestedMemFormatted := "-"
+	memUtilizationPercentFormatted := "-"
+	if pod.IsMemBound() {
+		totalRequestedMem := pod.TotalRequestedMem()
+		totalRequestedMemFormatted = totalRequestedMem.String()
+		memUtilizationPercentFormatted = fmt.Sprintf("%2.f%%", pod.MemUtilizationPercentage())
+	}
+
+	totalRequestedCpuFormatted := "-"
+	cpuUtilizationPercetFormatted := "-"
+	if pod.IsCpuBound() {
+		totalRequestedCpu := pod.TotalRequestedCpu()
+		totalRequestedCpuFormatted = totalRequestedCpu.String()
+		cpuUtilizationPercetFormatted = fmt.Sprintf("%2.f%%", pod.CpuUtilizationPercentage())
+	}
+
+	podRow := fmt.Sprintf("%s\t%s\t%v\t%s\t%v\t%s\t",
+		pod.Namespace, pod.Name,
+		totalRequestedMemFormatted, memUtilizationPercentFormatted,
+		totalRequestedCpuFormatted, cpuUtilizationPercetFormatted)
+
+	return podRow
+}
+
+func toContainerRow(container Container) string {
+	memUtilizationFormatted := "-"
+	if container.IsMemBound() {
+		memUtilizationFormatted = fmt.Sprintf("%2.f%%", container.MemUtilizationPercentage())
+	}
+
+	cpuUtilizationFormatted := "-"
+	if container.IsCpuBound() {
+		cpuUtilizationFormatted = fmt.Sprintf("%2.f%%", container.CpuUtilizationPercentage())
+	}
+
+	containerRow := fmt.Sprintf("%s\t%s\t%v\t%s\t%v\t%s\t",
+		"", "  \\_"+container.Name,
+		container.RequestedMem.String(), memUtilizationFormatted,
+		container.RequestedCpu.String(), cpuUtilizationFormatted)
+
+	return containerRow
 }
 
 func Filter(vs []Pod, f func(Pod) bool) []Pod {

@@ -85,6 +85,24 @@ func TestIsMemBoundContainer(t *testing.T) {
 	}
 }
 
+func TestContainerMemUtilizationPercentage(t *testing.T) {
+	pod := NewTestPod()
+	container := pod.Containers["test-container-1"]
+	utilizationPerct := container.MemUtilizationPercentage()
+	if utilizationPerct != 20.00 {
+		t.Errorf("got = %.2f; want 20.00", utilizationPerct)
+	}
+}
+
+func TestContainerCpuUtilizationPercentage(t *testing.T) {
+	pod := NewTestPod()
+	container := pod.Containers["test-container-1"]
+	utilizationPerct := container.CpuUtilizationPercentage()
+	if utilizationPerct != 2.00 {
+		t.Errorf("got = %.2f; want 2.00", utilizationPerct)
+	}
+}
+
 // ---------------
 // Fixtures
 // ---------------
