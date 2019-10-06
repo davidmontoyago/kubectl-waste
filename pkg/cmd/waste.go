@@ -34,11 +34,11 @@ import (
 
 var (
 	listWastefulPodsExample = `
-	# find all wasteful pods in the current namespace
+	# find all wasteful pods across all namespaces
 	%[1]s waste
 
-	# find all wasteful pods in all namespaces
-	%[1]s waste --all-namespaces
+	# find all wasteful pods in a namespace
+	%[1]s waste -n my-namespace
 `
 
 	errNoContext = fmt.Errorf("no context is currently set, use %q to select a new one", "kubectl config use-context <context>")
@@ -117,7 +117,6 @@ func (o *CommandOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	var err error
 
-	o.namespace = "kube-system"
 	o.clientset, err = InitClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -235,7 +234,7 @@ func (o *CommandOptions) Run() error {
 	corev1Client := o.clientset.CoreV1()
 	metricsv1Client := o.metricsClientset.MetricsV1beta1()
 
-	foundPods, err := findPods(o.namespace, corev1Client, metricsv1Client)
+	foundPods, err := findPods(o.userSpecifiedNamespace, corev1Client, metricsv1Client)
 	if err != nil {
 		return err
 	}

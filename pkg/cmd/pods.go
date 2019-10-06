@@ -144,11 +144,11 @@ func findPods(namespace string,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
 
 	listOptions := metav1.ListOptions{}
-	allPods, err := corev1Client.Pods(metav1.NamespaceAll).List(listOptions)
+	allPods, err := corev1Client.Pods(namespace).List(listOptions)
 	if err != nil {
 		return nil, err
 	}
-	podsMetrics, err := metricsv1Client.PodMetricses(metav1.NamespaceAll).List(listOptions)
+	podsMetrics, err := metricsv1Client.PodMetricses(namespace).List(listOptions)
 	if err != nil {
 		return nil, err
 	}
