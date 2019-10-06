@@ -17,3 +17,6 @@ test:
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
+
+fmt:
+	$(GOCMD) fmt ./pkg/cmd/

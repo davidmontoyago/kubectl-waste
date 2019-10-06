@@ -1,17 +1,17 @@
 package cmd
 
 import (
-  "fmt"
+	"fmt"
 	"os"
-  "text/tabwriter"
+	"text/tabwriter"
 
-  corev1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	typev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1beta1 "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
-  "k8s.io/apimachinery/pkg/api/resource"
 )
 
 type Container struct {
