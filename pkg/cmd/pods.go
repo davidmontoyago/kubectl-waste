@@ -33,6 +33,7 @@ func (container Container) IsMemBound() bool {
 
 type Pod struct {
 	Name       string
+	Namespace  string
 	Containers map[string]Container
 }
 
@@ -173,7 +174,7 @@ func collectPodsRequests(allPods *corev1.PodList) (map[string]Pod, error) {
 	var podsByName = make(map[string]Pod)
 	for _, pod := range allPods.Items {
 		podContainers := make(map[string]Container)
-		consumingPod := Pod{Name: pod.Name}
+		consumingPod := Pod{Name: pod.Name, Namespace: pod.Namespace}
 		for _, container := range pod.Spec.Containers {
 			resources := container.Resources
 			podContainer := Container{Name: container.Name}
@@ -209,8 +210,8 @@ func collectPodsMetrics(podsByName map[string]Pod,
 func printPods(pods []Pod) {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
-	fmt.Fprintln(w, "Name\tMem Requested\tMem Utilization %\tCpu Requested\tCpu Utilization %\t")
-	fmt.Fprintln(w, "----\t-------------\t-----------------\t-------------\t-----------------\t")
+	fmt.Fprintln(w, "NAMESPACE\tNAME\tMEM REQUESTED\tMEM UTILIZATION %\tCPU REQUESTED\tCPU UTILIZATION %\t")
+	fmt.Fprintln(w, "---------\t----\t-------------\t-----------------\t-------------\t-----------------\t")
 	for _, pod := range pods {
 		totalRequestedMemFormatted := "-"
 		memUtilizationPercentFormatted := "-"
@@ -228,8 +229,9 @@ func printPods(pods []Pod) {
 			cpuUtilizationPercetFormatted = fmt.Sprintf("%2.f%%", pod.CpuUtilizationPercentage())
 		}
 
-		row := fmt.Sprintf("%s\t%v\t%s\t%v\t%s\t",
-			pod.Name, totalRequestedMemFormatted, memUtilizationPercentFormatted,
+		row := fmt.Sprintf("%s\t%s\t%v\t%s\t%v\t%s\t",
+			pod.Namespace, pod.Name,
+			totalRequestedMemFormatted, memUtilizationPercentFormatted,
 			totalRequestedCpuFormatted, cpuUtilizationPercetFormatted)
 		fmt.Fprintln(w, row)
 	}
