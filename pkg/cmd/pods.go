@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"text/tabwriter"
 
 	corev1 "k8s.io/api/core/v1"
@@ -106,6 +107,37 @@ func (pod Pod) TotalRequestedMem() resource.Quantity {
 	return *totalRequested
 }
 
+func (this Pod) HasLessCpuUtilizationThan(another Pod) bool {
+	if this.IsCpuBound() && another.IsCpuBound() {
+		return this.CpuUtilizationPercentage() < another.CpuUtilizationPercentage()
+	} else if this.IsCpuBound() {
+		return true
+	}
+	return false
+}
+
+func (this Pod) HasLessMemUtilizationThan(another Pod) bool {
+	if this.IsMemBound() && another.IsMemBound() {
+		return this.MemUtilizationPercentage() < another.MemUtilizationPercentage()
+	} else if this.IsMemBound() {
+		return true
+	}
+	return false
+}
+
+type ByUtilization []Pod
+
+func (pods ByUtilization) Len() int      { return len(pods) }
+func (pods ByUtilization) Swap(i, j int) { pods[i], pods[j] = pods[j], pods[i] }
+func (pods ByUtilization) Less(i, j int) bool {
+	if pods[i].HasLessCpuUtilizationThan(pods[j]) {
+		return true
+	} else if pods[i].HasLessMemUtilizationThan(pods[j]) {
+		return true
+	}
+	return false
+}
+
 func findPods(namespace string,
 	corev1Client typev1.CoreV1Interface,
 	metricsv1Client metricsv1beta1.MetricsV1beta1Interface) ([]Pod, error) {
@@ -131,6 +163,8 @@ func findPods(namespace string,
 	}
 
 	pods = Filter(pods, Pod.IsResourceBound)
+
+	sort.Sort(ByUtilization(pods))
 
 	return pods, nil
 }
