@@ -95,7 +95,7 @@ func NewCmd(streams genericclioptions.IOStreams) *cobra.Command {
 	return cmd
 }
 
-// Complete sets all information required for updating the current context
+// Complete sets all information required
 func (o *CommandOptions) Complete(cmd *cobra.Command, args []string) error {
 	o.args = args
 
@@ -125,8 +125,7 @@ func (o *CommandOptions) Validate() error {
 	return nil
 }
 
-// Run lists all available namespaces on a user's KUBECONFIG or updates the
-// current context based on a provided namespace.
+// Run finds and print pods
 func (o *CommandOptions) Run() error {
 	corev1Client := o.clientset.CoreV1()
 	metricsv1Client := o.metricsClientset.MetricsV1beta1()
