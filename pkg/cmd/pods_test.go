@@ -64,6 +64,15 @@ func TestTotalRequestedMem(t *testing.T) {
 	}
 }
 
+func TestHasLowUtilization(t *testing.T) {
+	pod := NewTestPod()
+	utilizationThresholdPercent := 50.0
+	hasLowUtilization := pod.HasLowUtilization(utilizationThresholdPercent)
+	if !hasLowUtilization {
+		t.Errorf("got = %v; want true", hasLowUtilization)
+	}
+}
+
 // ---------------
 // Container tests
 // ---------------

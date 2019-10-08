@@ -138,6 +138,15 @@ func (this Pod) HasLessMemUtilizationThan(another Pod) bool {
 	return false
 }
 
+func (pod Pod) HasLowUtilization(utilizationThreshold float64) bool {
+	if pod.IsMemBound() && pod.MemUtilizationPercentage() < utilizationThreshold {
+		return true
+	} else if pod.IsCpuBound() && pod.CpuUtilizationPercentage() < utilizationThreshold {
+		return true
+	}
+	return false
+}
+
 type ByUtilization []Pod
 
 func (pods ByUtilization) Len() int      { return len(pods) }
@@ -176,6 +185,10 @@ func findPods(namespace string,
 	}
 
 	pods = Filter(pods, Pod.IsResourceBound)
+	pods = Filter(pods, func(pod Pod) bool {
+		utilizationThresholdPercent := 50.0
+		return pod.HasLowUtilization(utilizationThresholdPercent)
+	})
 
 	sort.Sort(ByUtilization(pods))
 
